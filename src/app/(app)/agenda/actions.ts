@@ -14,6 +14,7 @@ const eventSchema = z.object({
   title: z.string().trim().min(3).max(160),
   kind: z.enum(["service", "event", "meeting"]),
   description: z.string().trim().max(2000).optional(),
+  imageUrl: z.string().trim().max(500).refine((value) => !value || value.startsWith("events/") || value.startsWith("https://"), "Imagem invalida.").optional().or(z.literal("")),
   startsAt: z.string().min(10).max(40),
   endsAt: z.string().max(40).optional(),
   location: z.string().trim().max(160).optional(),
@@ -30,7 +31,7 @@ export async function createAgendaEvent(formData: FormData) {
   const startsAt = new Date(parsed.data.startsAt);
   const endsAt = parsed.data.endsAt ? new Date(parsed.data.endsAt) : null;
   if (Number.isNaN(startsAt.getTime()) || (endsAt && (Number.isNaN(endsAt.getTime()) || endsAt <= startsAt))) redirect("/agenda/novo?erro=Informe datas e horários válidos.");
-  const [event] = await getDb().insert(agendaEvents).values({ title: parsed.data.title, kind: parsed.data.kind, description: parsed.data.description || null, startsAt, endsAt, location: parsed.data.location || null, visibility: parsed.data.visibility, capacity: parsed.data.capacity ?? null, registrationRequired: parsed.data.registrationRequired === "on", recurrenceRule: parsed.data.recurrenceRule || null, createdBy: current.userId }).returning({ id: agendaEvents.id });
+  const [event] = await getDb().insert(agendaEvents).values({ title: parsed.data.title, kind: parsed.data.kind, description: parsed.data.description || null, imageUrl: parsed.data.imageUrl || null, startsAt, endsAt, location: parsed.data.location || null, visibility: parsed.data.visibility, capacity: parsed.data.capacity ?? null, registrationRequired: parsed.data.registrationRequired === "on", recurrenceRule: parsed.data.recurrenceRule || null, createdBy: current.userId }).returning({ id: agendaEvents.id });
   if (parsed.data.visibility === "public") {
     const recipients = await getDb().select({ id: users.id }).from(users).where(eq(users.status, "active"));
     await notifyUsers(recipients.map(({ id }) => id).filter((id) => id !== current.userId), { title: `Novo evento: ${parsed.data.title}`, body: startsAt.toLocaleString("pt-BR"), href: "/agenda" });

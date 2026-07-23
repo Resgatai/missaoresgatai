@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, eq, inArray } from "drizzle-orm";
+import { and, count, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -165,5 +165,6 @@ export async function selfRegisterMember(formData: FormData) {
 export async function approveSelfRegisteredMember(formData: FormData) {
   const current = await requirePermission("membros.editar"); const id = z.string().uuid().safeParse(formData.get("id"));
   if (!id.success) redirect("/membros"); await getDb().update(members).set({ registrationStatus: "approved", updatedAt: new Date() }).where(eq(members.id, id.data));
+  await getDb().update(users).set({ status: "active", sessionVersion: sql`${users.sessionVersion} + 1` }).where(eq(users.memberId, id.data));
   await writeAuditLog({ actorId: current.userId, action: "membros.auto_cadastro.aprovar", entityType: "member", entityId: id.data }); revalidatePath("/membros"); redirect("/membros?aprovado=1");
 }

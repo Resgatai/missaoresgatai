@@ -21,3 +21,11 @@ html.dark input, html.dark select, html.dark textarea { background-color: #2d231
 .border-\[\#1769aa\] { border-color: var(--resgatai-brown) !important; }
 .bg-blue-50 { background-color: #fff6c8 !important; }
 .text-blue-700 { color: var(--resgatai-brown) !important; }
+button.bg-\[\#7b4b2a\], a.bg-\[\#7b4b2a\],
+button.bg-\[\#1769aa\], a.bg-\[\#1769aa\] {
+  background-color: var(--resgatai-gold) !important;
+  color: var(--resgatai-ink) !important;
+}
+button.hover\:bg-\[\#5d402b\]:hover, a.hover\:bg-\[\#5d402b\]:hover {
+  background-color: var(--resgatai-gold-deep) !important;
+}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
-import { Search, UserPlus, UsersRound } from "lucide-react";
+import { Pencil, Search, UserPlus, UsersRound } from "lucide-react";
 import { CopyRegistrationLink } from "@/components/copy-registration-link";
 import { approveSelfRegisteredMember } from "../mvp/actions";
 import { getDb } from "@/lib/db";
@@ -9,12 +9,59 @@ import { requirePermission } from "@/lib/auth/authorization";
 
 const labels: Record<string, string> = { visitor: "Visitante", new_convert: "Novo convertido", congregant: "Congregado", active: "Membro ativo", inactive: "Afastado", transferred: "Transferido", dismissed: "Desligado", deceased: "Falecido", follow_up: "Em acompanhamento" };
 
-export default async function MembersPage({ searchParams }: { searchParams: Promise<{ busca?: string; situacao?: string; criado?: string; aprovado?: string }> }) {
+export default async function MembersPage({ searchParams }: { searchParams: Promise<{ busca?: string; situacao?: string; criado?: string; aprovado?: string; arquivado?: string; erro?: string }> }) {
   await requirePermission("membros.visualizar");
-  const { busca = "", situacao = "", criado, aprovado } = await searchParams;
+  const { busca = "", situacao = "", criado, aprovado, arquivado, erro } = await searchParams;
   const filters = [];
   if (busca) filters.push(or(ilike(members.fullName, `%${busca}%`), ilike(members.email, `%${busca}%`), ilike(members.mobilePhone, `%${busca}%`)));
   if (situacao && situacao in labels) filters.push(eq(members.status, situacao as (typeof memberStatus.enumValues)[number]));
   const rows = await getDb().select().from(members).where(filters.length ? and(...filters) : undefined).orderBy(desc(members.createdAt)).limit(200);
-  return <main className="mx-auto max-w-6xl p-4 sm:p-7 lg:p-9"><div className="mb-6 flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-[#7b4b2a]">Cadastros</p><h1 className="mt-1 text-2xl font-bold text-slate-800">Membros</h1><p className="mt-1 text-sm text-slate-500">Pessoas da igreja e auto cadastros pendentes de aprovação.</p></div><div className="flex flex-wrap gap-2"><CopyRegistrationLink /><Link href="/membros/novo" className="inline-flex items-center gap-2 rounded-lg bg-[#7b4b2a] px-3 py-2.5 text-sm font-bold text-white"><UserPlus size={16} />Novo membro</Link></div></div>{criado && <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Membro cadastrado.</p>}{aprovado && <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Auto cadastro aprovado.</p>}<form className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_190px_auto]"><label className="relative"><Search className="absolute left-3 top-3 text-slate-400" size={17} /><input name="busca" defaultValue={busca} className="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm" placeholder="Buscar nome, e-mail ou celular" /></label><select name="situacao" defaultValue={situacao} className="h-11 rounded-lg border border-slate-300 px-3 text-sm"><option value="">Todas as situações</option>{Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button className="rounded-lg border border-slate-300 px-4 text-sm font-bold">Filtrar</button></form><section className="grid gap-3">{rows.map((member) => <article key={member.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><Link href={`/membros/${member.id}`} className="font-bold text-slate-800 hover:text-[#7b4b2a]">{member.fullName}</Link><p className="mt-1 text-xs text-slate-500">{member.email || "Sem e-mail"} · {member.mobilePhone || member.whatsapp || "Sem celular"}</p></div><div className="flex items-center gap-2"><span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">{member.registrationStatus === "pending" ? "Aguardando aprovação" : labels[member.status]}</span>{member.registrationStatus === "pending" && <form action={approveSelfRegisteredMember}><input type="hidden" name="id" value={member.id} /><button className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white">Aprovar</button></form>}</div></div></article>)}{!rows.length && <div className="grid min-h-48 place-items-center rounded-xl border border-slate-200 bg-white p-8 text-center"><UsersRound className="text-slate-300" size={34} /><p className="text-sm text-slate-500">Nenhum membro encontrado.</p></div>}</section></main>;
+
+  return <main className="mx-auto max-w-6xl p-4 sm:p-7 lg:p-9">
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-widest text-[#7b4b2a]">Cadastros</p>
+        <h1 className="mt-1 text-2xl font-bold text-slate-800">Membros</h1>
+        <p className="mt-1 text-sm text-slate-500">Pessoas da igreja e auto cadastros pendentes de aprovacao.</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <CopyRegistrationLink />
+        <Link href="/membros/novo" className="inline-flex items-center gap-2 rounded-lg bg-[#7b4b2a] px-3 py-2.5 text-sm font-bold text-white"><UserPlus size={16} />Novo membro</Link>
+      </div>
+    </div>
+
+    {erro && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">{erro}</p>}
+    {criado && <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Membro cadastrado.</p>}
+    {aprovado && <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Auto cadastro aprovado.</p>}
+    {arquivado && <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Membro arquivado.</p>}
+
+    <form className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_190px_auto]">
+      <label className="relative">
+        <Search className="absolute left-3 top-3 text-slate-400" size={17} />
+        <input name="busca" defaultValue={busca} className="h-11 w-full rounded-lg border border-slate-300 pl-10 pr-3 text-sm" placeholder="Buscar nome, e-mail ou celular" />
+      </label>
+      <select name="situacao" defaultValue={situacao} className="h-11 rounded-lg border border-slate-300 px-3 text-sm">
+        <option value="">Todas as situacoes</option>
+        {Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+      </select>
+      <button className="rounded-lg bg-[#7b4b2a] px-4 text-sm font-bold text-white">Filtrar</button>
+    </form>
+
+    <section className="grid gap-3">
+      {rows.map((member) => <article key={member.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <Link href={`/membros/${member.id}`} className="font-bold text-slate-800 hover:text-[#7b4b2a]">{member.fullName}</Link>
+            <p className="mt-1 text-xs text-slate-500">{member.email || "Sem e-mail"} · {member.mobilePhone || member.whatsapp || "Sem celular"}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700">{member.registrationStatus === "pending" ? "Aguardando aprovacao" : labels[member.status]}</span>
+            <Link href={`/membros/${member.id}/editar`} className="inline-flex items-center gap-1 rounded-lg border border-[#7b4b2a] px-3 py-2 text-xs font-bold text-[#7b4b2a]"><Pencil size={14}/>Editar</Link>
+            {member.registrationStatus === "pending" && <form action={approveSelfRegisteredMember}><input type="hidden" name="id" value={member.id} /><button className="rounded-lg bg-[#7b4b2a] px-3 py-2 text-xs font-bold text-white">Aprovar</button></form>}
+          </div>
+        </div>
+      </article>)}
+      {!rows.length && <div className="grid min-h-48 place-items-center rounded-xl border border-slate-200 bg-white p-8 text-center"><UsersRound className="text-slate-300" size={34} /><p className="text-sm text-slate-500">Nenhum membro encontrado.</p></div>}
+    </section>
+  </main>;
 }

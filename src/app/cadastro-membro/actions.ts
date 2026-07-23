@@ -1,22 +1,26 @@
 "use server";
 
 import { createHash } from "node:crypto";
+import bcrypt from "bcryptjs";
+import { eq, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit";
 import { getDb } from "@/lib/db";
-import { members } from "@/lib/db/schema";
+import { members, roles, userRoles, users } from "@/lib/db/schema";
 import { encryptSensitiveText } from "@/lib/security/encryption";
 
 const optional = (value: string | undefined) => value?.trim() || undefined;
 const digits = (value: string | undefined) => value?.replace(/\D/g, "") || undefined;
+
 const normalizeInstagram = (value: string | undefined) => {
   const raw = value?.trim();
   if (!raw) return undefined;
   const handle = raw.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "").replace(/[/?#].*$/, "").replace(/^@/, "");
   return /^[a-zA-Z0-9._]{1,30}$/.test(handle) ? `@${handle}` : undefined;
 };
+
 const validCpf = (cpf: string) => {
   if (!/^\d{11}$/.test(cpf) || /^([0-9])\1+$/.test(cpf)) return false;
   let sum = 0;
@@ -47,21 +51,41 @@ const schema = z.object({
   zipCode: z.string().trim().max(12).optional(),
   guardianName: z.string().trim().max(160).optional(),
   notes: z.string().trim().max(3000).optional(),
+  createAccount: z.enum(["on"]).optional(),
+  username: z.string().trim().min(3).max(80).regex(/^[a-zA-Z0-9._-]+$/).optional().or(z.literal("")),
+  password: z.string().min(8).max(128).optional().or(z.literal("")),
+  passwordConfirmation: z.string().min(8).max(128).optional().or(z.literal("")),
 });
 
 export async function selfRegisterMember(formData: FormData) {
   const parsed = schema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) redirect("/cadastro-membro?erro=Confira os dados informados.");
+
   const data = parsed.data;
+  const wantsAccount = data.createAccount === "on";
   const instagram = normalizeInstagram(data.instagram);
   if (data.instagram && !instagram) redirect("/cadastro-membro?erro=Informe o Instagram no formato @conta.");
+
   const cpf = digits(data.cpf);
-  if (cpf && !validCpf(cpf)) redirect("/cadastro-membro?erro=CPF inválido.");
+  if (cpf && !validCpf(cpf)) redirect("/cadastro-membro?erro=CPF invalido.");
+
+  if (wantsAccount) {
+    if (!optional(data.email)) redirect("/cadastro-membro?erro=Informe um e-mail para criar a conta de acesso.");
+    if (!optional(data.username)) redirect("/cadastro-membro?erro=Escolha um usuario de acesso.");
+    if (!data.password || data.password !== data.passwordConfirmation) redirect("/cadastro-membro?erro=Confira a senha e a confirmacao.");
+  }
+
+  const db = getDb();
+  if (wantsAccount && data.email && data.username) {
+    const conflict = await db.select({ id: users.id }).from(users).where(or(eq(users.email, data.email.toLowerCase()), eq(users.username, data.username.toLowerCase()))).limit(1);
+    if (conflict[0]) redirect("/cadastro-membro?erro=Ja existe uma conta com este e-mail ou usuario.");
+  }
+
   const notes = optional(data.notes);
-  const [member] = await getDb().insert(members).values({
+  const [member] = await db.insert(members).values({
     fullName: data.fullName,
     preferredName: optional(data.preferredName),
-    email: optional(data.email),
+    email: optional(data.email)?.toLowerCase(),
     mobilePhone: digits(data.mobilePhone),
     instagram,
     cpfHash: cpf ? createHash("sha256").update(cpf).digest("hex") : undefined,
@@ -80,7 +104,21 @@ export async function selfRegisterMember(formData: FormData) {
     registrationStatus: "pending",
     consentAt: new Date(),
   }).returning({ id: members.id });
-  await writeAuditLog({ action: "membros.auto_cadastro", entityType: "member", entityId: member.id, metadata: { pendingApproval: true } });
+
+  if (wantsAccount && data.email && data.username && data.password) {
+    const [account] = await db.insert(users).values({
+      name: data.fullName,
+      username: data.username.toLowerCase(),
+      email: data.email.toLowerCase(),
+      passwordHash: await bcrypt.hash(data.password, 12),
+      status: "invited",
+      memberId: member.id,
+    }).returning({ id: users.id });
+    const memberRole = (await db.select({ id: roles.id }).from(roles).where(eq(roles.slug, "membro")).limit(1))[0];
+    if (memberRole) await db.insert(userRoles).values({ userId: account.id, roleId: memberRole.id }).onConflictDoNothing();
+  }
+
+  await writeAuditLog({ action: "membros.auto_cadastro", entityType: "member", entityId: member.id, metadata: { pendingApproval: true, requestedUserAccount: wantsAccount } });
   revalidatePath("/membros");
   redirect("/cadastro-membro?enviado=1");
 }

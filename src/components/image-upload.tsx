@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 
-export function ImageUpload({ name, scope, currentValue = "" }: { name: string; scope: "logo" | "member"; currentValue?: string }) {
+export function ImageUpload({ name, scope, currentValue = "" }: { name: string; scope: "logo" | "member" | "event"; currentValue?: string }) {
   const [value, setValue] = useState(currentValue);
   const [preview, setPreview] = useState(currentValue.startsWith("http") ? currentValue : "");
   const [message, setMessage] = useState("");
