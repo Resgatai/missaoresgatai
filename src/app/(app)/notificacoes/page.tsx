@@ -1,0 +1,11 @@
+import { desc, eq } from "drizzle-orm";
+import { Bell, Check } from "lucide-react";
+import { markNotificationRead } from "../mvp/actions";
+import { requirePermission } from "@/lib/auth/authorization";
+import { getDb } from "@/lib/db";
+import { notifications } from "@/lib/db/schema";
+
+export default async function NotificationsPage() {
+  const current = await requirePermission("painel.visualizar"); const rows = await getDb().select().from(notifications).where(eq(notifications.userId, current.userId)).orderBy(desc(notifications.createdAt)).limit(100);
+  return <main className="mx-auto max-w-4xl p-4 sm:p-7 lg:p-9"><header className="mb-7"><p className="text-[10px] font-extrabold uppercase tracking-[.12em] text-[#1769aa]">Comunicação</p><h1 className="mt-1 text-2xl font-bold text-slate-800">Notificações</h1><p className="mt-1 text-sm text-slate-500">Avisos pessoais e atualizações das suas atividades.</p></header><section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">{rows.length ? rows.map((notification) => <article key={notification.id} className={`flex items-start justify-between gap-4 border-b border-slate-100 p-5 last:border-0 ${notification.readAt ? "bg-white" : "bg-blue-50/40"}`}><div className="flex gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-blue-50 text-[#1769aa]"><Bell size={16}/></span><div><h2 className="font-bold text-slate-800">{notification.title}</h2>{notification.body && <p className="mt-1 text-sm text-slate-600">{notification.body}</p>}{notification.href && <a href={notification.href} className="mt-2 inline-block text-xs font-bold text-[#1769aa]">Abrir</a>}<p className="mt-2 text-xs text-slate-500">{new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" }).format(notification.createdAt)}</p></div></div>{!notification.readAt && <form action={markNotificationRead}><input type="hidden" name="id" value={notification.id}/><button aria-label="Marcar como lida" className="rounded-lg border border-slate-200 p-2 text-slate-500"><Check size={15}/></button></form>}</article>) : <div className="grid min-h-56 place-items-center text-center text-sm text-slate-500"><div><Bell className="mx-auto mb-3 text-slate-300"/><p>Nenhuma notificação por enquanto.</p></div></div>}</section></main>;
+}

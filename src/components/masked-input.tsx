@@ -1,0 +1,5 @@
+"use client";
+import { useState } from "react";
+function formatPhone(value: string) { const digits = value.replace(/\D/g, "").slice(0, 11); if (digits.length <= 2) return digits.length ? `(${digits}` : ""; if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`; return `(${digits.slice(0, 2)}) ${digits.slice(2, digits.length - 4)}-${digits.slice(-4)}`; }
+function formatCpf(value: string) { const digits = value.replace(/\D/g, "").slice(0, 11); return digits.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2"); }
+export function MaskedInput({ name, defaultValue, kind, placeholder, className }: { name: string; defaultValue?: string | null; kind: "phone" | "cpf"; placeholder?: string; className?: string }) { const [value, setValue] = useState(() => kind === "cpf" ? formatCpf(defaultValue || "") : formatPhone(defaultValue || "")); return <input name={name} value={value} onChange={(event) => setValue(kind === "cpf" ? formatCpf(event.target.value) : formatPhone(event.target.value))} inputMode="numeric" placeholder={placeholder} className={className}/>; }
