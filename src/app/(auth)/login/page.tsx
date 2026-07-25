@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { LoginForm } from "./login-form";
 
 function safeCallbackUrl(value?: string) {
@@ -11,7 +12,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
     <div className="grid min-h-screen bg-[#fffdf6] lg:grid-cols-[.9fr_1.1fr]">
       <main className="mx-auto flex w-full max-w-md flex-col justify-center px-6 py-10">
         <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-full border border-[#7b4b2a] text-xl font-bold text-[#cdb019]">✦</span>
+          <Image src="/logo-resgatai.png" alt="Missão Resgatai" width={48} height={48} className="size-12 rounded-full border border-[#7b4b2a] object-cover" priority />
           <div>
             <strong className="block text-[#2d2926]">Missão Resgatai</strong>
             <small className="text-[10px] tracking-widest text-stone-500">GESTÃO DE IGREJA</small>

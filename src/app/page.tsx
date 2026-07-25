@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { CalendarDays, PlayCircle, Radio } from "lucide-react";
 import { registerForEvent } from "./(app)/mvp/actions";
 import { getDb } from "@/lib/db";
@@ -12,7 +12,7 @@ export default async function PublicHome({ searchParams }: { searchParams: Promi
   const db = getDb();
   const [settings, events, contents, radio] = await Promise.all([
     (await db.select().from(churchSettings).limit(1))[0],
-    db.select().from(agendaEvents).where(eq(agendaEvents.visibility, "public")).orderBy(asc(agendaEvents.startsAt)).limit(6),
+    db.select().from(agendaEvents).where(and(eq(agendaEvents.visibility, "public"), isNull(agendaEvents.canceledAt))).orderBy(asc(agendaEvents.startsAt)).limit(6),
     db.select().from(contentItems).where(eq(contentItems.visible, true)).orderBy(asc(contentItems.publishedAt)).limit(6),
     (await db.select().from(radioStations).where(eq(radioStations.active, true)).limit(1))[0],
   ]);
