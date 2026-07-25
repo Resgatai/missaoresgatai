@@ -32,7 +32,7 @@ export function ImageUpload({ name, scope, currentValue = "" }: { name: string; 
   return <div className="grid gap-2">
     <input type="hidden" name={name} value={value}/>
     <input type="file" accept="image/png,image/jpeg" onChange={(event) => upload(event.target.files?.[0])} className="block text-sm"/>
-    {preview && <Image src={preview} alt="Prévia" width={80} height={80} unoptimized className="size-20 rounded-lg border object-cover"/>}
+    {preview && <Image src={preview} alt="Prévia" width={80} height={80} unoptimized className="size-20 rounded-lg border bg-[#fffdf6] object-contain"/>}
     <small className="text-xs text-slate-500">PNG ou JPEG, até 5 MB. {message}</small>
   </div>;
 }

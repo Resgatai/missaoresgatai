@@ -45,7 +45,7 @@ export default async function PublicHome({ searchParams }: { searchParams: Promi
       <div className="flex items-center gap-3"><CalendarDays className="text-[#7b4b2a]"/><div><p className="text-xs font-bold uppercase tracking-widest text-[#7b4b2a]">Programacao</p><h2 className="mt-1 text-3xl font-bold">Proximos eventos</h2></div></div>
       <div className="mt-7 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {upcomingEvents.map((event) => { const imageUrl = imageUrls.get(event.id); return <article key={event.id} className="overflow-hidden rounded-xl border border-[#eadfce] bg-white shadow-sm">
-          {imageUrl && <Image src={imageUrl} alt={event.title} width={640} height={360} unoptimized className="h-40 w-full object-cover" />}
+          {imageUrl && <Image src={imageUrl} alt={event.title} width={640} height={360} unoptimized className="h-40 w-full bg-[#fffdf6] object-contain" />}
           <div className="p-5">
             <p className="text-sm font-bold text-[#7b4b2a]">{new Intl.DateTimeFormat("pt-BR", { dateStyle: "full", timeStyle: "short" }).format(event.startsAt)}</p>
             <h3 className="mt-3 text-lg font-bold">{event.title}</h3>
