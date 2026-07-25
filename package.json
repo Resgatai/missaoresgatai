@@ -25,6 +25,7 @@
     "db:migrate:operational": "node --env-file=.env.local scripts/apply-operational-migration.mjs",
     "db:migrate:member-instagram": "node --env-file=.env.local scripts/apply-member-instagram-migration.mjs",
     "db:migrate:event-images-self-access": "node --env-file=.env.local scripts/apply-event-images-self-access-migration.mjs",
+    "db:migrate:neon-file-assets": "node --env-file=.env.local scripts/apply-neon-file-assets-migration.mjs",
     "seed:admin": "node --env-file=.env.local scripts/seed-admin.mjs"
   },
   "dependencies": {

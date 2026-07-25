@@ -5,7 +5,7 @@ import Image from "next/image";
 
 export function ImageUpload({ name, scope, currentValue = "" }: { name: string; scope: "logo" | "member" | "event"; currentValue?: string }) {
   const [value, setValue] = useState(currentValue);
-  const [preview, setPreview] = useState(currentValue.startsWith("http") ? currentValue : "");
+  const [preview, setPreview] = useState(currentValue.startsWith("http") || currentValue.startsWith("/api/uploads/image/") ? currentValue : "");
   const [message, setMessage] = useState("");
 
   async function upload(file?: File) {

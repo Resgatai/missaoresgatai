@@ -15,7 +15,7 @@ const eventSchema = z.object({
   title: z.string().trim().min(3).max(160),
   kind: z.enum(["service", "event", "meeting"]),
   description: z.string().trim().max(2000).optional(),
-  imageUrl: z.string().trim().max(500).refine((value) => !value || value.startsWith("events/") || value.startsWith("https://"), "Imagem invalida.").optional().or(z.literal("")),
+  imageUrl: z.string().trim().max(500).refine((value) => !value || value.startsWith("events/") || value.startsWith("/api/uploads/image/") || value.startsWith("https://"), "Imagem invalida.").optional().or(z.literal("")),
   startsAt: z.string().min(10).max(40),
   endsAt: z.string().max(40).optional(),
   location: z.string().trim().max(160).optional(),
