@@ -8,7 +8,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/authorization";
 import { writeAuditLog } from "@/lib/audit";
 import { getDb } from "@/lib/db";
-import { departments, members, roles, userDepartmentScopes, userRoles, users } from "@/lib/db/schema";
+import { agendaEvents, departments, financialTransactionApprovals, financialTransactions, members, roles, serviceAssignments, userDepartmentScopes, userRoles, users } from "@/lib/db/schema";
 
 const roleSlugs = ["superadministrador", "pastor_presidente", "pastor", "secretario", "tesoureiro", "lider_departamento", "auxiliar", "membro"] as const;
 const userSchema = z.object({ name: z.string().trim().min(3).max(160), username: z.string().trim().toLowerCase().regex(/^[a-z0-9._-]{3,80}$/), email: z.string().trim().toLowerCase().email().max(255), password: z.string().min(8).max(128), roleSlugs: z.array(z.enum(roleSlugs)).min(1) });
@@ -61,6 +61,39 @@ export async function setUserStatus(formData: FormData) {
   await db.update(users).set({ status: parsed.data.status, sessionVersion: sql`${users.sessionVersion} + 1` }).where(inArray(users.id, [parsed.data.userId]));
   await writeAuditLog({ actorId: current.userId, action: "usuarios.situacao.atualizar", entityType: "user", entityId: parsed.data.userId, metadata: { status: parsed.data.status, sessionsRevoked: true } });
   revalidatePath("/usuarios"); redirect("/usuarios?statusAtualizado=1");
+}
+
+export async function deleteUser(formData: FormData) {
+  const current = await requirePermission("usuarios.gerenciar");
+  const parsed = z.object({ userId: z.string().uuid(), reason: z.string().trim().min(5).max(300) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect("/usuarios?erro=Informe um motivo com pelo menos 5 caracteres para excluir.");
+  if (parsed.data.userId === current.userId) redirect("/usuarios?erro=Voce nao pode excluir a propria conta.");
+  const db = getDb();
+  const target = (await db.select({ id: users.id, name: users.name }).from(users).where(eq(users.id, parsed.data.userId)).limit(1))[0];
+  if (!target) redirect("/usuarios?erro=Usuario nao encontrado.");
+  const targetSuper = (await db.select({ id: userRoles.userId }).from(userRoles).innerJoin(roles, eq(userRoles.roleId, roles.id)).where(and(eq(userRoles.userId, target.id), eq(roles.slug, "superadministrador"))).limit(1))[0];
+  if (targetSuper) {
+    const [{ total }] = await db.select({ total: sql<number>`count(distinct ${users.id})` }).from(users).innerJoin(userRoles, eq(users.id, userRoles.userId)).innerJoin(roles, eq(userRoles.roleId, roles.id)).where(and(eq(users.status, "active"), eq(roles.slug, "superadministrador")));
+    if (Number(total) <= 1) redirect("/usuarios?erro=Nao e possivel excluir o ultimo superadministrador.");
+  }
+  const [[agenda], [finance], [approvals], [assignments]] = await Promise.all([
+    db.select({ total: sql<number>`count(*)` }).from(agendaEvents).where(eq(agendaEvents.createdBy, target.id)),
+    db.select({ total: sql<number>`count(*)` }).from(financialTransactions).where(eq(financialTransactions.createdBy, target.id)),
+    db.select({ total: sql<number>`count(*)` }).from(financialTransactionApprovals).where(eq(financialTransactionApprovals.approverId, target.id)),
+    db.select({ total: sql<number>`count(*)` }).from(serviceAssignments).where(eq(serviceAssignments.createdBy, target.id)),
+  ]);
+  if ([agenda, finance, approvals, assignments].some((row) => Number(row.total) > 0)) {
+    redirect(`/usuarios?erro=Nao e possivel excluir ${target.name}: a conta possui historico protegido de eventos, escalas ou financeiro.`);
+  }
+  await writeAuditLog({ actorId: current.userId, action: "usuarios.excluir", entityType: "user", entityId: target.id, metadata: { name: target.name, reason: parsed.data.reason } });
+  try {
+    await db.delete(users).where(eq(users.id, target.id));
+  } catch {
+    redirect("/usuarios?erro=Nao foi possivel excluir a conta. Verifique se ha registros protegidos.");
+  }
+  revalidatePath("/usuarios");
+  revalidatePath("/usuarios/escopos");
+  redirect("/usuarios?excluido=1");
 }
 
 export async function updateUser(formData: FormData) {

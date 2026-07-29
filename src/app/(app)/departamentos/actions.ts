@@ -13,7 +13,7 @@ import { departmentMembers, departments, members, roles, userDepartmentScopes, u
 const departmentSchema = z.object({
   name: z.string().trim().min(3).max(120),
   description: z.string().trim().max(500).optional(),
-  leaderMemberId: z.string().uuid().optional(),
+  leaderMemberId: z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.string().uuid().optional()),
 });
 
 export async function createDepartment(formData: FormData) {

@@ -14,6 +14,7 @@ import { notifyUsers } from "@/lib/firebase-push";
 
 const transactionSchema = z.object({ type: z.enum(["income", "expense"]), amount: z.string().trim().min(1).max(20), description: z.string().trim().min(3).max(500), accountId: z.string().uuid(), categoryId: z.string().uuid(), occurredAt: z.string().min(10).max(40) });
 const idSchema = z.string().uuid();
+const transactionEditSchema = transactionSchema.extend({ transactionId: idSchema });
 
 function decimalFromBrazilianInput(value: string) {
   const normalized = value.replace(/\./g, "").replace(",", ".");
@@ -40,6 +41,50 @@ export async function createFinancialTransaction(formData: FormData) {
   await writeAuditLog({ actorId: current.userId, action: "financeiro.lancamento.criar", entityType: "financial_transaction", entityId: transaction.id, metadata: { type: parsed.data.type, approvalPolicy: "single-authorized-approval" } });
   revalidatePath("/financeiro");
   redirect(`/financeiro/${transaction.id}?criado=1`);
+}
+
+export async function updateFinancialTransaction(formData: FormData) {
+  const current = await requirePermission("financeiro.criar");
+  const parsed = transactionEditSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect(`/financeiro/${String(formData.get("transactionId") ?? "")}?erro=Confira os dados do lancamento.`);
+  const amount = decimalFromBrazilianInput(parsed.data.amount);
+  const occurredAt = parseBrazilDateTimeLocal(parsed.data.occurredAt);
+  if (!amount || Number.isNaN(occurredAt.getTime())) redirect(`/financeiro/${parsed.data.transactionId}?erro=Valor ou data invalidos.`);
+  const db = getDb();
+  const transaction = (await db.select().from(financialTransactions).where(eq(financialTransactions.id, parsed.data.transactionId)).limit(1))[0];
+  if (!transaction) redirect("/financeiro?erro=Lancamento nao encontrado.");
+  const [approvalCount] = await db.select({ total: sql<number>`count(*)` }).from(financialTransactionApprovals).where(eq(financialTransactionApprovals.transactionId, transaction.id));
+  if (Number(approvalCount.total) > 0) redirect(`/financeiro/${transaction.id}?erro=Lancamentos com aprovacao registrada nao podem ser editados. Use um estorno.`);
+  const [account, category] = await Promise.all([
+    db.select().from(financialAccounts).where(and(eq(financialAccounts.id, parsed.data.accountId), eq(financialAccounts.active, true))).limit(1),
+    db.select().from(financialCategories).where(and(eq(financialCategories.id, parsed.data.categoryId), eq(financialCategories.active, true))).limit(1),
+  ]);
+  if (!account[0] || !category[0] || category[0].type !== parsed.data.type) redirect(`/financeiro/${transaction.id}?erro=Conta ou categoria invalida.`);
+  await db.update(financialTransactions).set({ type: parsed.data.type, amount, description: parsed.data.description, accountId: account[0].id, categoryId: category[0].id, occurredAt }).where(eq(financialTransactions.id, transaction.id));
+  await writeAuditLog({ actorId: current.userId, action: "financeiro.lancamento.editar", entityType: "financial_transaction", entityId: transaction.id, metadata: { type: parsed.data.type, amount, description: parsed.data.description } });
+  revalidatePath("/financeiro");
+  revalidatePath(`/financeiro/${transaction.id}`);
+  redirect(`/financeiro/${transaction.id}?atualizado=1`);
+}
+
+export async function deleteFinancialTransaction(formData: FormData) {
+  const current = await requirePermission("financeiro.criar");
+  const parsed = z.object({ transactionId: idSchema, reason: z.string().trim().min(5).max(300) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect(`/financeiro/${String(formData.get("transactionId") ?? "")}?erro=Informe um motivo com pelo menos 5 caracteres para excluir.`);
+  const db = getDb();
+  const transaction = (await db.select({ id: financialTransactions.id, reference: financialTransactions.reference }).from(financialTransactions).where(eq(financialTransactions.id, parsed.data.transactionId)).limit(1))[0];
+  if (!transaction) redirect("/financeiro?erro=Lancamento nao encontrado.");
+  const [approvalCount] = await db.select({ total: sql<number>`count(*)` }).from(financialTransactionApprovals).where(eq(financialTransactionApprovals.transactionId, transaction.id));
+  const [reversal] = await db.select({ id: financialTransactions.id }).from(financialTransactions).where(eq(financialTransactions.reversesTransactionId, transaction.id)).limit(1);
+  if (Number(approvalCount.total) > 0 || reversal) redirect(`/financeiro/${transaction.id}?erro=Este lancamento possui aprovacao ou estorno e nao pode ser excluido.`);
+  await writeAuditLog({ actorId: current.userId, action: "financeiro.lancamento.excluir", entityType: "financial_transaction", entityId: transaction.id, metadata: { reference: transaction.reference, reason: parsed.data.reason } });
+  try {
+    await db.delete(financialTransactions).where(eq(financialTransactions.id, transaction.id));
+  } catch {
+    redirect(`/financeiro/${transaction.id}?erro=Nao foi possivel excluir o lancamento.`);
+  }
+  revalidatePath("/financeiro");
+  redirect("/financeiro?excluido=1");
 }
 
 export async function approveFinancialTransaction(formData: FormData) {
