@@ -9,9 +9,9 @@ import { requirePermission } from "@/lib/auth/authorization";
 
 const labels: Record<string, string> = { visitor: "Visitante", new_convert: "Novo convertido", congregant: "Congregado", active: "Membro ativo", inactive: "Afastado", transferred: "Transferido", dismissed: "Desligado", deceased: "Falecido", follow_up: "Em acompanhamento" };
 
-export default async function MembersPage({ searchParams }: { searchParams: Promise<{ busca?: string; situacao?: string; criado?: string; aprovado?: string; arquivado?: string; erro?: string }> }) {
+export default async function MembersPage({ searchParams }: { searchParams: Promise<{ busca?: string; situacao?: string; criado?: string; aprovado?: string; arquivado?: string; excluido?: string; erro?: string }> }) {
   await requirePermission("membros.visualizar");
-  const { busca = "", situacao = "", criado, aprovado, arquivado, erro } = await searchParams;
+  const { busca = "", situacao = "", criado, aprovado, arquivado, excluido, erro } = await searchParams;
   const filters = [];
   if (busca) filters.push(or(ilike(members.fullName, `%${busca}%`), ilike(members.email, `%${busca}%`), ilike(members.mobilePhone, `%${busca}%`)));
   if (situacao && situacao in labels) filters.push(eq(members.status, situacao as (typeof memberStatus.enumValues)[number]));
@@ -33,7 +33,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
     {erro && <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">{erro}</p>}
     {criado && <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Membro cadastrado.</p>}
     {aprovado && <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Auto cadastro aprovado.</p>}
-    {arquivado && <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Membro arquivado.</p>}
+    {arquivado && <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Membro inativado.</p>}{excluido && <p className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">Membro excluido.</p>}
 
     <form className="mb-5 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_190px_auto]">
       <label className="relative">

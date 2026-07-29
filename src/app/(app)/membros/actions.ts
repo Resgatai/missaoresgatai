@@ -4,10 +4,10 @@ import bcrypt from "bcryptjs";
 import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, or } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { memberHistory, members, roles, userRoles, users } from "@/lib/db/schema";
+import { attendanceRecords, departmentMembers, memberDocuments, memberHistory, members, roles, serviceAssignments, userRoles, users } from "@/lib/db/schema";
 import { requirePermission } from "@/lib/auth/authorization";
 import { writeAuditLog } from "@/lib/audit";
 import { encryptSensitiveText } from "@/lib/security/encryption";
@@ -60,6 +60,33 @@ export async function updateMember(formData: FormData) {
   await db.insert(memberHistory).values({ memberId: id.data, action: "cadastro.atualizado", createdBy: currentUser.userId, details: { previousStatus: existing.status, status: data.status } });
   await writeAuditLog({ actorId: currentUser.userId, action: "membros.atualizar", entityType: "member", entityId: id.data, previousData: { status: existing.status }, newData: { status: data.status } });
   revalidatePath("/membros"); revalidatePath(`/membros/${id.data}`); redirect(`/membros/${id.data}?atualizado=1`);
+}
+
+export async function deleteMember(formData: FormData) {
+  const currentUser = await requirePermission("membros.editar");
+  const parsed = z.object({ id: z.string().uuid(), reason: z.string().trim().min(5).max(300) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect(`/membros/${String(formData.get("id") ?? "")}?erro=Informe um motivo com pelo menos 5 caracteres para excluir.`);
+  const db = getDb();
+  const member = (await db.select({ id: members.id, fullName: members.fullName }).from(members).where(eq(members.id, parsed.data.id)).limit(1))[0];
+  if (!member) redirect("/membros?erro=Membro nao encontrado.");
+  const [[attendance], [history], [documents], [departments], [assignments]] = await Promise.all([
+    db.select({ total: sql<number>`count(*)` }).from(attendanceRecords).where(eq(attendanceRecords.memberId, member.id)),
+    db.select({ total: sql<number>`count(*)` }).from(memberHistory).where(eq(memberHistory.memberId, member.id)),
+    db.select({ total: sql<number>`count(*)` }).from(memberDocuments).where(eq(memberDocuments.memberId, member.id)),
+    db.select({ total: sql<number>`count(*)` }).from(departmentMembers).where(eq(departmentMembers.memberId, member.id)),
+    db.select({ total: sql<number>`count(*)` }).from(serviceAssignments).where(eq(serviceAssignments.memberId, member.id)),
+  ]);
+  if ([attendance, history, documents, departments, assignments].some((row) => Number(row.total) > 0)) {
+    redirect(`/membros/${member.id}?erro=Este membro possui historico, presencas, documentos, departamentos ou escalas vinculados. Use Inativar para preservar os registros.`);
+  }
+  await writeAuditLog({ actorId: currentUser.userId, action: "membros.excluir", entityType: "member", entityId: member.id, metadata: { name: member.fullName, reason: parsed.data.reason } });
+  try {
+    await db.delete(members).where(eq(members.id, member.id));
+  } catch {
+    redirect(`/membros/${member.id}?erro=Nao foi possivel excluir o membro. Verifique os registros vinculados.`);
+  }
+  revalidatePath("/membros");
+  redirect("/membros?excluido=1");
 }
 
 export async function archiveMember(formData: FormData) {
