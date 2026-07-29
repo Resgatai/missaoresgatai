@@ -1,19 +1,18 @@
 import type { Metadata } from "next";
+import { InstallAppPrompt } from "@/components/install-app-prompt";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Missão Resgatai | Gestão de Igreja",
-  description: "Plataforma de gestão e comunicação da Missão Resgatai.",
+  title: "Missao Resgatai | Gestao de Igreja",
+  description: "Plataforma de gestao e comunicacao da Missao Resgatai.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "Missao Resgatai" },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="pt-BR" className="h-full">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">{children}<InstallAppPrompt /></body>
     </html>
   );
 }

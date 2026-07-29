@@ -3,11 +3,12 @@ import { BarChart3, CalendarDays, CheckCircle2, Download, UsersRound, type Lucid
 import { can } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/authorization";
 import { getDb } from "@/lib/db";
+import { endOfBrazilDay, startOfBrazilDay } from "@/lib/timezone";
 import { agendaEvents, attendanceRecords, financialTransactions, members } from "@/lib/db/schema";
 
 function bounds(inicio?: string, fim?: string) {
-  const start = inicio && /^\d{4}-\d{2}-\d{2}$/.test(inicio) ? new Date(`${inicio}T00:00:00`) : new Date("2000-01-01T00:00:00Z");
-  const end = fim && /^\d{4}-\d{2}-\d{2}$/.test(fim) ? new Date(`${fim}T23:59:59.999`) : undefined;
+  const start = inicio && /^\d{4}-\d{2}-\d{2}$/.test(inicio) ? startOfBrazilDay(inicio) : new Date("2000-01-01T00:00:00Z");
+  const end = fim && /^\d{4}-\d{2}-\d{2}$/.test(fim) ? endOfBrazilDay(fim) : undefined;
   return { start, end };
 }
 

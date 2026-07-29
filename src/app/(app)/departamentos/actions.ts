@@ -7,12 +7,13 @@ import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit";
 import { requirePermission } from "@/lib/auth/authorization";
 import { getDb } from "@/lib/db";
+
 import { departmentMembers, departments, members, roles, userDepartmentScopes, userRoles, users } from "@/lib/db/schema";
 
 const departmentSchema = z.object({
   name: z.string().trim().min(3).max(120),
   description: z.string().trim().max(500).optional(),
-  leaderMemberId: z.string().uuid().optional(),
+  leaderMemberId: z.preprocess((value) => value === "" || value === undefined ? undefined : value, z.string().uuid().optional()),
 });
 
 export async function createDepartment(formData: FormData) {

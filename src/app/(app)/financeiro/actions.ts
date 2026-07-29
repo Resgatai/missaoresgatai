@@ -8,11 +8,13 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/authorization";
 import { writeAuditLog } from "@/lib/audit";
 import { getDb } from "@/lib/db";
+import { brazilDateInputValue, parseBrazilDateTimeLocal } from "@/lib/timezone";
 import { financialAccounts, financialCategories, financialTransactionApprovals, financialTransactions, roles, userRoles, users } from "@/lib/db/schema";
 import { notifyUsers } from "@/lib/firebase-push";
 
 const transactionSchema = z.object({ type: z.enum(["income", "expense"]), amount: z.string().trim().min(1).max(20), description: z.string().trim().min(3).max(500), accountId: z.string().uuid(), categoryId: z.string().uuid(), occurredAt: z.string().min(10).max(40) });
 const idSchema = z.string().uuid();
+const transactionEditSchema = transactionSchema.extend({ transactionId: idSchema });
 
 function decimalFromBrazilianInput(value: string) {
   const normalized = value.replace(/\./g, "").replace(",", ".");
@@ -32,13 +34,57 @@ export async function createFinancialTransaction(formData: FormData) {
     db.select().from(financialCategories).where(and(eq(financialCategories.id, parsed.data.categoryId), eq(financialCategories.active, true))).limit(1),
   ]);
   if (!account[0] || !category[0] || category[0].type !== parsed.data.type) redirect("/financeiro/novo?erro=Conta ou categoria inválida.");
-  const reference = `FIN-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
-  const [transaction] = await db.insert(financialTransactions).values({ reference, type: parsed.data.type, amount, description: parsed.data.description, accountId: account[0].id, categoryId: category[0].id, createdBy: current.userId, occurredAt: new Date(parsed.data.occurredAt), requiredApprovals: 1 }).returning({ id: financialTransactions.id });
+  const reference = `FIN-${brazilDateInputValue().replace(/-/g, "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const [transaction] = await db.insert(financialTransactions).values({ reference, type: parsed.data.type, amount, description: parsed.data.description, accountId: account[0].id, categoryId: category[0].id, createdBy: current.userId, occurredAt: parseBrazilDateTimeLocal(parsed.data.occurredAt), requiredApprovals: 1 }).returning({ id: financialTransactions.id });
   const approvers = await db.select({ id: users.id }).from(users).innerJoin(userRoles, eq(users.id, userRoles.userId)).innerJoin(roles, eq(userRoles.roleId, roles.id)).where(and(eq(users.status, "active"), inArray(roles.slug, ["superadministrador", "pastor_presidente", "pastor", "tesoureiro"])));
   await notifyUsers(approvers.map(({ id }) => id).filter((id) => id !== current.userId), { title: "Lançamento financeiro aguardando aprovação", body: `${parsed.data.description} · R$ ${amount}`, href: `/financeiro/${transaction.id}` });
   await writeAuditLog({ actorId: current.userId, action: "financeiro.lancamento.criar", entityType: "financial_transaction", entityId: transaction.id, metadata: { type: parsed.data.type, approvalPolicy: "single-authorized-approval" } });
   revalidatePath("/financeiro");
   redirect(`/financeiro/${transaction.id}?criado=1`);
+}
+
+export async function updateFinancialTransaction(formData: FormData) {
+  const current = await requirePermission("financeiro.criar");
+  const parsed = transactionEditSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect(`/financeiro/${String(formData.get("transactionId") ?? "")}?erro=Confira os dados do lancamento.`);
+  const amount = decimalFromBrazilianInput(parsed.data.amount);
+  const occurredAt = parseBrazilDateTimeLocal(parsed.data.occurredAt);
+  if (!amount || Number.isNaN(occurredAt.getTime())) redirect(`/financeiro/${parsed.data.transactionId}?erro=Valor ou data invalidos.`);
+  const db = getDb();
+  const transaction = (await db.select().from(financialTransactions).where(eq(financialTransactions.id, parsed.data.transactionId)).limit(1))[0];
+  if (!transaction) redirect("/financeiro?erro=Lancamento nao encontrado.");
+  const [approvalCount] = await db.select({ total: sql<number>`count(*)` }).from(financialTransactionApprovals).where(eq(financialTransactionApprovals.transactionId, transaction.id));
+  if (Number(approvalCount.total) > 0) redirect(`/financeiro/${transaction.id}?erro=Lancamentos com aprovacao registrada nao podem ser editados. Use um estorno.`);
+  const [account, category] = await Promise.all([
+    db.select().from(financialAccounts).where(and(eq(financialAccounts.id, parsed.data.accountId), eq(financialAccounts.active, true))).limit(1),
+    db.select().from(financialCategories).where(and(eq(financialCategories.id, parsed.data.categoryId), eq(financialCategories.active, true))).limit(1),
+  ]);
+  if (!account[0] || !category[0] || category[0].type !== parsed.data.type) redirect(`/financeiro/${transaction.id}?erro=Conta ou categoria invalida.`);
+  await db.update(financialTransactions).set({ type: parsed.data.type, amount, description: parsed.data.description, accountId: account[0].id, categoryId: category[0].id, occurredAt }).where(eq(financialTransactions.id, transaction.id));
+  await writeAuditLog({ actorId: current.userId, action: "financeiro.lancamento.editar", entityType: "financial_transaction", entityId: transaction.id, metadata: { type: parsed.data.type, amount, description: parsed.data.description } });
+  revalidatePath("/financeiro");
+  revalidatePath(`/financeiro/${transaction.id}`);
+  redirect(`/financeiro/${transaction.id}?atualizado=1`);
+}
+
+export async function deleteFinancialTransaction(formData: FormData) {
+  const current = await requirePermission("financeiro.criar");
+  const parsed = z.object({ transactionId: idSchema, reason: z.string().trim().min(5).max(300) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) redirect(`/financeiro/${String(formData.get("transactionId") ?? "")}?erro=Informe um motivo com pelo menos 5 caracteres para excluir.`);
+  const db = getDb();
+  const transaction = (await db.select({ id: financialTransactions.id, reference: financialTransactions.reference }).from(financialTransactions).where(eq(financialTransactions.id, parsed.data.transactionId)).limit(1))[0];
+  if (!transaction) redirect("/financeiro?erro=Lancamento nao encontrado.");
+  const [approvalCount] = await db.select({ total: sql<number>`count(*)` }).from(financialTransactionApprovals).where(eq(financialTransactionApprovals.transactionId, transaction.id));
+  const [reversal] = await db.select({ id: financialTransactions.id }).from(financialTransactions).where(eq(financialTransactions.reversesTransactionId, transaction.id)).limit(1);
+  if (Number(approvalCount.total) > 0 || reversal) redirect(`/financeiro/${transaction.id}?erro=Este lancamento possui aprovacao ou estorno e nao pode ser excluido.`);
+  await writeAuditLog({ actorId: current.userId, action: "financeiro.lancamento.excluir", entityType: "financial_transaction", entityId: transaction.id, metadata: { reference: transaction.reference, reason: parsed.data.reason } });
+  try {
+    await db.delete(financialTransactions).where(eq(financialTransactions.id, transaction.id));
+  } catch {
+    redirect(`/financeiro/${transaction.id}?erro=Nao foi possivel excluir o lancamento.`);
+  }
+  revalidatePath("/financeiro");
+  redirect("/financeiro?excluido=1");
 }
 
 export async function approveFinancialTransaction(formData: FormData) {
@@ -68,7 +114,7 @@ export async function reverseFinancialTransaction(formData: FormData) {
   if (!original) redirect("/financeiro?erro=Lançamento não encontrado.");
   const existing = (await db.select({ id: financialTransactions.id }).from(financialTransactions).where(eq(financialTransactions.reversesTransactionId, original.id)).limit(1))[0];
   if (existing) redirect(`/financeiro/${original.id}?erro=Este lançamento já possui estorno.`);
-  const reference = `EST-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const reference = `EST-${brazilDateInputValue().replace(/-/g, "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
   const [reversal] = await db.insert(financialTransactions).values({ reference, type: original.type === "income" ? "expense" : "income", amount: original.amount, description: `Estorno de ${original.reference}: ${reason.data}`, accountId: original.accountId, categoryId: original.categoryId, createdBy: current.userId, occurredAt: new Date(), requiredApprovals: 1, reversesTransactionId: original.id }).returning({ id: financialTransactions.id });
   await writeAuditLog({ actorId: current.userId, action: "financeiro.lancamento.estornar", entityType: "financial_transaction", entityId: reversal.id, metadata: { originalTransactionId: original.id, reason: reason.data } });
   revalidatePath("/financeiro"); revalidatePath(`/financeiro/${original.id}`); redirect(`/financeiro/${reversal.id}?criado=1`);

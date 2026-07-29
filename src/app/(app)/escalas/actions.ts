@@ -7,6 +7,7 @@ import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit";
 import { requirePermission } from "@/lib/auth/authorization";
 import { getDb } from "@/lib/db";
+import { parseBrazilDateTimeLocal } from "@/lib/timezone";
 import { agendaEvents, members, serviceAssignments, serviceTeams, users } from "@/lib/db/schema";
 import { notifyUsers } from "@/lib/firebase-push";
 
@@ -24,7 +25,7 @@ export async function createServiceAssignment(formData: FormData) {
   const parsed = assignmentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) redirect("/escalas/nova?erro=Confira os dados da escala.");
 
-  const scheduledAt = new Date(parsed.data.scheduledAt);
+  const scheduledAt = parseBrazilDateTimeLocal(parsed.data.scheduledAt);
   if (Number.isNaN(scheduledAt.getTime())) redirect("/escalas/nova?erro=Informe uma data e hor%C3%A1rio v%C3%A1lidos.");
 
   const db = getDb();
@@ -56,7 +57,7 @@ export async function createServiceAssignment(formData: FormData) {
     metadata: { teamId: parsed.data.teamId, memberId: parsed.data.memberId, eventId: parsed.data.eventId || null, scheduledAt: scheduledAt.toISOString() },
   });
   const linkedUser = (await db.select({ id: users.id }).from(users).where(and(eq(users.memberId, parsed.data.memberId), eq(users.status, "active"))).limit(1))[0];
-  if (linkedUser) await notifyUsers([linkedUser.id], { title: "Nova escala atribuída", body: `Você foi escalado para ${scheduledAt.toLocaleString("pt-BR")}.`, href: "/escalas" });
+  if (linkedUser) await notifyUsers([linkedUser.id], { title: "Nova escala atribuída", body: `Você foi escalado para ${scheduledAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}.`, href: "/escalas" });
   revalidatePath("/escalas");
   redirect("/escalas?criado=1");
 }

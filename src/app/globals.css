@@ -3,4 +3,29 @@
 :root { --background: #fffdf6; --foreground: #2d2926; --resgatai-gold: #e9d33b; --resgatai-gold-deep: #cdb019; --resgatai-brown: #7b4b2a; --resgatai-ink: #2d2926; }
 @theme inline { --color-background: var(--background); --color-foreground: var(--foreground); --font-sans: Arial, Helvetica, sans-serif; --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace; }
 body { background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
+
+html { color-scheme: light; }
+html.dark { color-scheme: dark; --background: #17120f; --foreground: #f8eee5; }
+html.dark body { background: var(--background); color: var(--foreground); }
+html.dark [class*="bg-white"] { background-color: #241c17 !important; }
+html.dark [class*="bg-[#fffdf6]"] { background-color: #17120f !important; }
+html.dark [class*="border-slate-"], html.dark [class*="border-[#eadfce]"] { border-color: #5b4638 !important; }
+html.dark [class*="text-slate-800"], html.dark [class*="text-slate-700"] { color: #f8eee5 !important; }
+html.dark [class*="text-slate-600"], html.dark [class*="text-slate-500"] { color: #d6c2b1 !important; }
+html.dark input, html.dark select, html.dark textarea { background-color: #2d231d !important; color: #f8eee5 !important; border-color: #705846 !important; }
 ::selection { background: #f5e675; color: #2d2926; }
+
+/* Compatibilidade para telas antigas que ainda usavam o azul anterior. */
+.text-\[\#1769aa\] { color: var(--resgatai-brown) !important; }
+.bg-\[\#1769aa\] { background-color: var(--resgatai-brown) !important; }
+.border-\[\#1769aa\] { border-color: var(--resgatai-brown) !important; }
+.bg-blue-50 { background-color: #fff6c8 !important; }
+.text-blue-700 { color: var(--resgatai-brown) !important; }
+button.bg-\[\#7b4b2a\], a.bg-\[\#7b4b2a\],
+button.bg-\[\#1769aa\], a.bg-\[\#1769aa\] {
+  background-color: var(--resgatai-gold) !important;
+  color: var(--resgatai-ink) !important;
+}
+button.hover\:bg-\[\#5d402b\]:hover, a.hover\:bg-\[\#5d402b\]:hover {
+  background-color: var(--resgatai-gold-deep) !important;
+}
