@@ -12,6 +12,7 @@ function getYouTubeThumbnail(url: string) {
     let videoId = parsed.searchParams.get("v");
     if (!videoId && parsed.hostname === "youtu.be") videoId = parsed.pathname.slice(1);
     if (!videoId && parsed.pathname.startsWith("/shorts/")) videoId = parsed.pathname.split("/")[2];
+    if (!videoId && parsed.pathname.startsWith("/live/")) videoId = parsed.pathname.split("/")[2];
     if (!videoId && parsed.pathname.startsWith("/embed/")) videoId = parsed.pathname.split("/")[2];
     return videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null;
   } catch {
