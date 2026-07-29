@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { CalendarDays, PlayCircle, Radio } from "lucide-react";
 import { registerForEvent } from "./(app)/mvp/actions";
 import { getDb } from "@/lib/db";
@@ -25,13 +25,14 @@ export default async function PublicHome({ searchParams }: { searchParams: Promi
   const now = new Date();
   const [settings, events, contents, radio] = await Promise.all([
     (await db.select().from(churchSettings).limit(1))[0],
-    db.select().from(agendaEvents).where(and(eq(agendaEvents.visibility, "public"), isNull(agendaEvents.canceledAt), gte(agendaEvents.startsAt, now))).orderBy(asc(agendaEvents.startsAt)).limit(6),
+    db.select().from(agendaEvents).where(and(eq(agendaEvents.visibility, "public"), isNull(agendaEvents.canceledAt))).orderBy(asc(agendaEvents.startsAt)).limit(50),
     db.select().from(contentItems).where(eq(contentItems.visible, true)).orderBy(desc(contentItems.publishedAt)).limit(6),
     (await db.select().from(radioStations).where(eq(radioStations.active, true)).limit(1))[0],
   ]);
   const name = settings?.churchName || "Missao Resgatai";
-  const upcomingEvents = events;
-  const imageUrls = await mapTemporaryImageUrls(upcomingEvents);
+  const upcomingEvents = events.filter((event) => event.startsAt >= now);
+  const displayEvents = upcomingEvents.length ? upcomingEvents.slice(0, 6) : events.slice(-6).reverse();
+  const imageUrls = await mapTemporaryImageUrls(displayEvents);
 
   return <main className="min-h-screen bg-[#fffdf6] text-[#2d2926]">
     <header className="border-b border-[#eadfce] bg-white">
@@ -54,9 +55,9 @@ export default async function PublicHome({ searchParams }: { searchParams: Promi
     {message.erro && <p className="mx-auto mt-5 max-w-6xl rounded-lg bg-red-50 p-3 text-sm text-red-800">{message.erro}</p>}
 
     <section id="agenda" className="mx-auto max-w-6xl px-5 py-14">
-      <div className="flex items-center gap-3"><CalendarDays className="text-[#7b4b2a]"/><div><p className="text-xs font-bold uppercase tracking-widest text-[#7b4b2a]">Programacao</p><h2 className="mt-1 text-3xl font-bold">Proximos eventos</h2></div></div>
+      <div className="flex items-center gap-3"><CalendarDays className="text-[#7b4b2a]"/><div><p className="text-xs font-bold uppercase tracking-widest text-[#7b4b2a]">Programacao</p><h2 className="mt-1 text-3xl font-bold">{upcomingEvents.length ? "Proximos eventos" : "Eventos publicados"}</h2></div></div>
       <div className="mt-7 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {upcomingEvents.map((event) => { const imageUrl = imageUrls.get(event.id); return <article key={event.id} className="overflow-hidden rounded-xl border border-[#eadfce] bg-white shadow-sm">
+        {displayEvents.map((event) => { const imageUrl = imageUrls.get(event.id); return <article key={event.id} className="overflow-hidden rounded-xl border border-[#eadfce] bg-white shadow-sm">
           {imageUrl && <Image src={imageUrl} alt={event.title} width={640} height={360} unoptimized className="h-40 w-full bg-[#fffdf6] object-contain" />}
           <div className="p-5">
             <p className="text-sm font-bold text-[#7b4b2a]">{new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "full", timeStyle: "short" }).format(event.startsAt)}</p>
@@ -66,7 +67,7 @@ export default async function PublicHome({ searchParams }: { searchParams: Promi
             {event.registrationRequired && <form action={registerForEvent} className="mt-4 space-y-2 border-t border-stone-100 pt-4"><input type="hidden" name="eventId" value={event.id}/><input name="visitorName" required className="h-9 w-full rounded-md border border-stone-300 px-2 text-xs" placeholder="Seu nome"/><input name="visitorEmail" type="email" className="h-9 w-full rounded-md border border-stone-300 px-2 text-xs" placeholder="Seu e-mail"/><button className="w-full rounded-md bg-[#7b4b2a] py-2 text-xs font-bold text-white">Inscrever-se</button></form>}
           </div>
         </article>; })}
-        {!upcomingEvents.length && <p className="text-sm text-stone-500">Em breve divulgaremos os proximos eventos.</p>}
+        {!displayEvents.length && <p className="text-sm text-stone-500">Em breve divulgaremos os proximos eventos.</p>}
       </div>
     </section>
 
