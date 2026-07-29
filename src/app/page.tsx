@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
 import { CalendarDays, PlayCircle, Radio } from "lucide-react";
 import { registerForEvent } from "./(app)/mvp/actions";
 import { getDb } from "@/lib/db";
@@ -24,15 +24,16 @@ export default async function PublicHome({ searchParams }: { searchParams: Promi
   const message = await searchParams;
   const db = getDb();
   const now = new Date();
+  const contentSince = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const [settings, events, contents, radio] = await Promise.all([
     (await db.select().from(churchSettings).limit(1))[0],
     db.select().from(agendaEvents).where(and(eq(agendaEvents.visibility, "public"), isNull(agendaEvents.canceledAt))).orderBy(asc(agendaEvents.startsAt)).limit(50),
-    db.select().from(contentItems).where(eq(contentItems.visible, true)).orderBy(desc(contentItems.publishedAt)).limit(6),
+    db.select().from(contentItems).where(and(eq(contentItems.visible, true), gte(contentItems.publishedAt, contentSince))).orderBy(desc(contentItems.publishedAt)).limit(6),
     (await db.select().from(radioStations).where(eq(radioStations.active, true)).limit(1))[0],
   ]);
   const name = settings?.churchName || "Missao Resgatai";
-  const upcomingEvents = events.filter((event) => event.startsAt >= now);
-  const displayEvents = upcomingEvents.length ? upcomingEvents.slice(0, 6) : events.slice(-6).reverse();
+  const upcomingEvents = events.filter((event) => event.startsAt >= now || Boolean(event.endsAt && event.endsAt >= now));
+  const displayEvents = upcomingEvents.slice(0, 6);
   const imageUrls = await mapTemporaryImageUrls(displayEvents);
 
   return <main className="min-h-screen bg-[#fffdf6] text-[#2d2926]">
@@ -56,7 +57,7 @@ export default async function PublicHome({ searchParams }: { searchParams: Promi
     {message.erro && <p className="mx-auto mt-5 max-w-6xl rounded-lg bg-red-50 p-3 text-sm text-red-800">{message.erro}</p>}
 
     <section id="agenda" className="mx-auto max-w-6xl px-5 py-14">
-      <div className="flex items-center gap-3"><CalendarDays className="text-[#7b4b2a]"/><div><p className="text-xs font-bold uppercase tracking-widest text-[#7b4b2a]">Programacao</p><h2 className="mt-1 text-3xl font-bold">{upcomingEvents.length ? "Proximos eventos" : "Eventos publicados"}</h2></div></div>
+      <div className="flex items-center gap-3"><CalendarDays className="text-[#7b4b2a]"/><div><p className="text-xs font-bold uppercase tracking-widest text-[#7b4b2a]">Programacao</p><h2 className="mt-1 text-3xl font-bold">Proximos eventos</h2></div></div>
       <div className="mt-7 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {displayEvents.map((event) => { const imageUrl = imageUrls.get(event.id); return <article key={event.id} className="overflow-hidden rounded-xl border border-[#eadfce] bg-white shadow-sm">
           {imageUrl && <Image src={imageUrl} alt={event.title} width={640} height={360} unoptimized className="h-40 w-full bg-[#fffdf6] object-contain" />}
