@@ -8,6 +8,7 @@ import { z } from "zod";
 import { requirePermission } from "@/lib/auth/authorization";
 import { writeAuditLog } from "@/lib/audit";
 import { getDb } from "@/lib/db";
+import { brazilDateInputValue, parseBrazilDateTimeLocal } from "@/lib/timezone";
 import { financialAccounts, financialCategories, financialTransactionApprovals, financialTransactions, roles, userRoles, users } from "@/lib/db/schema";
 import { notifyUsers } from "@/lib/firebase-push";
 
@@ -32,8 +33,8 @@ export async function createFinancialTransaction(formData: FormData) {
     db.select().from(financialCategories).where(and(eq(financialCategories.id, parsed.data.categoryId), eq(financialCategories.active, true))).limit(1),
   ]);
   if (!account[0] || !category[0] || category[0].type !== parsed.data.type) redirect("/financeiro/novo?erro=Conta ou categoria inválida.");
-  const reference = `FIN-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
-  const [transaction] = await db.insert(financialTransactions).values({ reference, type: parsed.data.type, amount, description: parsed.data.description, accountId: account[0].id, categoryId: category[0].id, createdBy: current.userId, occurredAt: new Date(parsed.data.occurredAt), requiredApprovals: 1 }).returning({ id: financialTransactions.id });
+  const reference = `FIN-${brazilDateInputValue().replace(/-/g, "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const [transaction] = await db.insert(financialTransactions).values({ reference, type: parsed.data.type, amount, description: parsed.data.description, accountId: account[0].id, categoryId: category[0].id, createdBy: current.userId, occurredAt: parseBrazilDateTimeLocal(parsed.data.occurredAt), requiredApprovals: 1 }).returning({ id: financialTransactions.id });
   const approvers = await db.select({ id: users.id }).from(users).innerJoin(userRoles, eq(users.id, userRoles.userId)).innerJoin(roles, eq(userRoles.roleId, roles.id)).where(and(eq(users.status, "active"), inArray(roles.slug, ["superadministrador", "pastor_presidente", "pastor", "tesoureiro"])));
   await notifyUsers(approvers.map(({ id }) => id).filter((id) => id !== current.userId), { title: "Lançamento financeiro aguardando aprovação", body: `${parsed.data.description} · R$ ${amount}`, href: `/financeiro/${transaction.id}` });
   await writeAuditLog({ actorId: current.userId, action: "financeiro.lancamento.criar", entityType: "financial_transaction", entityId: transaction.id, metadata: { type: parsed.data.type, approvalPolicy: "single-authorized-approval" } });
@@ -68,7 +69,7 @@ export async function reverseFinancialTransaction(formData: FormData) {
   if (!original) redirect("/financeiro?erro=Lançamento não encontrado.");
   const existing = (await db.select({ id: financialTransactions.id }).from(financialTransactions).where(eq(financialTransactions.reversesTransactionId, original.id)).limit(1))[0];
   if (existing) redirect(`/financeiro/${original.id}?erro=Este lançamento já possui estorno.`);
-  const reference = `EST-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const reference = `EST-${brazilDateInputValue().replace(/-/g, "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
   const [reversal] = await db.insert(financialTransactions).values({ reference, type: original.type === "income" ? "expense" : "income", amount: original.amount, description: `Estorno de ${original.reference}: ${reason.data}`, accountId: original.accountId, categoryId: original.categoryId, createdBy: current.userId, occurredAt: new Date(), requiredApprovals: 1, reversesTransactionId: original.id }).returning({ id: financialTransactions.id });
   await writeAuditLog({ actorId: current.userId, action: "financeiro.lancamento.estornar", entityType: "financial_transaction", entityId: reversal.id, metadata: { originalTransactionId: original.id, reason: reason.data } });
   revalidatePath("/financeiro"); revalidatePath(`/financeiro/${original.id}`); redirect(`/financeiro/${reversal.id}?criado=1`);

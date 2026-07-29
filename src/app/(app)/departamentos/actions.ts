@@ -7,6 +7,7 @@ import { z } from "zod";
 import { writeAuditLog } from "@/lib/audit";
 import { requirePermission } from "@/lib/auth/authorization";
 import { getDb } from "@/lib/db";
+import { parseBrazilDateTimeLocal } from "@/lib/timezone";
 import { departmentMembers, departments, members, roles, userDepartmentScopes, userRoles, users } from "@/lib/db/schema";
 
 const departmentSchema = z.object({

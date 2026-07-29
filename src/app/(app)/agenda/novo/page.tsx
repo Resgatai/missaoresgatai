@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { ImageUpload } from "@/components/image-upload";
+import { brazilDateTimeInputValue } from "@/lib/timezone";
 import { createAgendaEvent } from "../actions";
 
 export default async function NewAgendaEventPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
@@ -16,8 +17,8 @@ export default async function NewAgendaEventPage({ searchParams }: { searchParam
       <label className="grid gap-2 text-xs font-bold text-slate-700 sm:col-span-2">Título<input name="title" required maxLength={160} className="h-11 rounded-lg border border-slate-300 px-3 font-normal" placeholder="Ex.: Culto de celebração"/></label>
       <label className="grid gap-2 text-xs font-bold text-slate-700">Tipo<select name="kind" defaultValue="service" className="h-11 rounded-lg border border-slate-300 px-3 font-normal"><option value="service">Culto</option><option value="event">Evento</option><option value="meeting">Reunião</option></select></label>
       <label className="grid gap-2 text-xs font-bold text-slate-700">Visibilidade<select name="visibility" defaultValue="public" className="h-11 rounded-lg border border-slate-300 px-3 font-normal"><option value="public">Para a igreja</option><option value="internal">Somente equipe</option></select></label>
-      <label className="grid gap-2 text-xs font-bold text-slate-700">Início<input name="startsAt" type="datetime-local" required defaultValue={now.toISOString().slice(0, 16)} className="h-11 rounded-lg border border-slate-300 px-3 font-normal"/></label>
-      <label className="grid gap-2 text-xs font-bold text-slate-700">Término<input name="endsAt" type="datetime-local" defaultValue={endsAt.toISOString().slice(0, 16)} className="h-11 rounded-lg border border-slate-300 px-3 font-normal"/></label>
+      <label className="grid gap-2 text-xs font-bold text-slate-700">Início<input name="startsAt" type="datetime-local" required defaultValue={brazilDateTimeInputValue(now)} className="h-11 rounded-lg border border-slate-300 px-3 font-normal"/></label>
+      <label className="grid gap-2 text-xs font-bold text-slate-700">Término<input name="endsAt" type="datetime-local" defaultValue={brazilDateTimeInputValue(endsAt)} className="h-11 rounded-lg border border-slate-300 px-3 font-normal"/></label>
       <label className="grid gap-2 text-xs font-bold text-slate-700 sm:col-span-2">Local<input name="location" maxLength={160} className="h-11 rounded-lg border border-slate-300 px-3 font-normal" placeholder="Ex.: Templo principal"/></label>
       <label className="grid gap-2 text-xs font-bold text-slate-700 sm:col-span-2">Banner ou imagem do evento<ImageUpload name="imageUrl" scope="event" /></label>
       <label className="grid gap-2 text-xs font-bold text-slate-700">Capacidade (opcional)<input name="capacity" type="number" min="1" max="100000" className="h-11 rounded-lg border border-slate-300 px-3 font-normal" placeholder="Ex.: 150"/></label>

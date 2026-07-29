@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { ArrowLeft } from "lucide-react";
 import { ImageUpload } from "@/components/image-upload";
+import { brazilDateTimeInputValue } from "@/lib/timezone";
 import { requirePermission } from "@/lib/auth/authorization";
 import { getDb } from "@/lib/db";
 import { agendaEvents } from "@/lib/db/schema";
 import { updateAgendaEvent } from "../../actions";
 
-const localDate = (value: Date | null) => value ? new Date(value).toISOString().slice(0, 16) : "";
+const localDate = (value: Date | null) => value ? brazilDateTimeInputValue(value) : "";
 
 export default async function EditAgendaEventPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ erro?: string }> }) {
   await requirePermission("eventos.gerenciar");

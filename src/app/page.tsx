@@ -59,7 +59,7 @@ export default async function PublicHome({ searchParams }: { searchParams: Promi
         {upcomingEvents.map((event) => { const imageUrl = imageUrls.get(event.id); return <article key={event.id} className="overflow-hidden rounded-xl border border-[#eadfce] bg-white shadow-sm">
           {imageUrl && <Image src={imageUrl} alt={event.title} width={640} height={360} unoptimized className="h-40 w-full bg-[#fffdf6] object-contain" />}
           <div className="p-5">
-            <p className="text-sm font-bold text-[#7b4b2a]">{new Intl.DateTimeFormat("pt-BR", { dateStyle: "full", timeStyle: "short" }).format(event.startsAt)}</p>
+            <p className="text-sm font-bold text-[#7b4b2a]">{new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "full", timeStyle: "short" }).format(event.startsAt)}</p>
             <h3 className="mt-3 text-lg font-bold">{event.title}</h3>
             {event.location && <p className="mt-2 text-sm text-stone-500">{event.location}</p>}
             {event.description && <p className="mt-3 text-sm leading-6 text-stone-600">{event.description}</p>}

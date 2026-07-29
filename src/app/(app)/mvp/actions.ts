@@ -7,6 +7,7 @@ import { z } from "zod";
 import { requireDepartmentScope, requirePermission } from "@/lib/auth/authorization";
 import { writeAuditLog } from "@/lib/audit";
 import { getDb } from "@/lib/db";
+import { parseBrazilDateTimeLocal } from "@/lib/timezone";
 import { agendaEvents, attendanceRecords, churchSettings, contentItems, departmentMembers, departmentTasks, eventRegistrations, memberFamilies, members, notifications, prayerRequests, radioStations, roles, userRoles, users, wallPosts } from "@/lib/db/schema";
 import { encryptSensitiveText } from "@/lib/security/encryption";
 import { notifyUsers } from "@/lib/firebase-push";
@@ -38,7 +39,7 @@ export async function createDepartmentTask(formData: FormData) {
   const parsed = z.object({ title: z.string().trim().min(3).max(180), description: z.string().trim().max(3000).optional(), dueAt: z.string().optional(), assignedMemberId: z.string().uuid().optional().or(z.literal("")) }).safeParse(Object.fromEntries(formData));
   if (!departmentId.success || !parsed.success) redirect("/departamentos?erro=Confira os dados da tarefa.");
   const current = await requireDepartmentScope(departmentId.data, "departamentos.gerenciar");
-  const dueAt = parsed.data.dueAt ? new Date(parsed.data.dueAt) : null;
+  const dueAt = parsed.data.dueAt ? parseBrazilDateTimeLocal(parsed.data.dueAt) : null;
   if (dueAt && Number.isNaN(dueAt.getTime())) redirect(`/departamentos/${departmentId.data}?erro=Data da tarefa inválida.`);
   if (parsed.data.assignedMemberId) {
     const member = await getDb().select({ id: members.id }).from(members).where(eq(members.id, parsed.data.assignedMemberId)).limit(1);
@@ -73,7 +74,7 @@ export async function createWallPost(formData: FormData) {
   const parsed = z.object({ title: z.string().trim().min(3).max(180), body: z.string().trim().min(3).max(8000), audience: z.enum(["all", "members", "leaders", "department"]), departmentId: z.string().uuid().optional().or(z.literal("")), expiresAt: z.string().optional() }).safeParse(Object.fromEntries(formData));
   if (!parsed.success || (parsed.data.audience === "department" && !parsed.data.departmentId)) redirect("/mural?erro=Confira o aviso e o público.");
   if (parsed.data.departmentId) await requireDepartmentScope(parsed.data.departmentId, "comunicacao.publicar");
-  const expiry = parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null;
+  const expiry = parsed.data.expiresAt ? parseBrazilDateTimeLocal(parsed.data.expiresAt) : null;
   if (expiry && Number.isNaN(expiry.getTime())) redirect("/mural?erro=Data de expiração inválida.");
   const [post] = await getDb().insert(wallPosts).values({ title: parsed.data.title, body: parsed.data.body, audience: parsed.data.audience, departmentId: parsed.data.departmentId || null, expiresAt: expiry, createdBy: current.userId }).returning({ id: wallPosts.id });
   const audienceUsers = await getDb().select({ id: users.id }).from(users).where(eq(users.status, "active"));

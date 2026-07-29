@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { writeAuditLog } from "@/lib/audit";
 import { requirePermission } from "@/lib/auth/authorization";
 import { getDb } from "@/lib/db";
+import { parseBrazilDateTimeLocal } from "@/lib/timezone";
 import { agendaEvents, users } from "@/lib/db/schema";
 import { notifyUsers } from "@/lib/firebase-push";
 
@@ -26,8 +27,8 @@ const eventSchema = z.object({
 });
 
 function parseDates(parsed: z.infer<typeof eventSchema>) {
-  const startsAt = new Date(parsed.startsAt);
-  const endsAt = parsed.endsAt ? new Date(parsed.endsAt) : null;
+  const startsAt = parseBrazilDateTimeLocal(parsed.startsAt);
+  const endsAt = parsed.endsAt ? parseBrazilDateTimeLocal(parsed.endsAt) : null;
   return { startsAt, endsAt, valid: !Number.isNaN(startsAt.getTime()) && (!endsAt || (!Number.isNaN(endsAt.getTime()) && endsAt > startsAt)) };
 }
 
@@ -40,7 +41,7 @@ export async function createAgendaEvent(formData: FormData) {
   const [event] = await getDb().insert(agendaEvents).values({ title: parsed.data.title, kind: parsed.data.kind, description: parsed.data.description || null, imageUrl: parsed.data.imageUrl || null, startsAt, endsAt, location: parsed.data.location || null, visibility: parsed.data.visibility, capacity: parsed.data.capacity ?? null, registrationRequired: parsed.data.registrationRequired === "on", recurrenceRule: parsed.data.recurrenceRule || null, createdBy: current.userId }).returning({ id: agendaEvents.id });
   if (parsed.data.visibility === "public") {
     const recipients = await getDb().select({ id: users.id }).from(users).where(eq(users.status, "active"));
-    await notifyUsers(recipients.map(({ id }) => id).filter((id) => id !== current.userId), { title: `Novo evento: ${parsed.data.title}`, body: startsAt.toLocaleString("pt-BR"), href: "/agenda" });
+    await notifyUsers(recipients.map(({ id }) => id).filter((id) => id !== current.userId), { title: `Novo evento: ${parsed.data.title}`, body: startsAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }), href: "/agenda" });
   }
   await writeAuditLog({ actorId: current.userId, action: "agenda.evento.criar", entityType: "agenda_event", entityId: event.id, metadata: { kind: parsed.data.kind, visibility: parsed.data.visibility, registrationRequired: parsed.data.registrationRequired === "on", capacity: parsed.data.capacity ?? null } });
   revalidatePath("/agenda");
